@@ -24,7 +24,10 @@ export const pipe = <I, X, O, E1, E2>(d1: Decode<I, X, E1>, d2: Decode<X, O, E2>
     return x.ok ? decode(d2, x.value) : x
   }
 
-export const map = <I, O, E>(f: (i: I) => O): Decode<I, O, E> =>
+export const always = <O>(o: O): Decode<unknown, O, never> =>
+  () => ok(o)
+
+export const map = <I, O>(f: (i: I) => O): Decode<I, O, never> =>
   i => ok(f(i))
 
 export const mapInput = <I, H, O, E>(f: (i: I) => H, d: Decode<H, O, E>): Decode<I, O, E> =>
@@ -96,7 +99,7 @@ export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], reado
     return errors.length === 0 ? ok(r) as Ok<readonly O[]> : fail({ type: 'KeyItemsFailed', errors })
   }
 
-export const record = <K extends PropertyKey, V, KE, VE>(keys: Decode<unknown, K, KE>, values: Decode<unknown, V, VE>): Decode<unknown, Record<K, V>, UnexpectedInput<'Record<string, unknown>', unknown> | KeyItemsFailed<readonly AtKey<unknown, KE | VE>[]>> =>
+export const objectMap = <K extends PropertyKey, V, KE, VE>(keys: Decode<unknown, K, KE>, values: Decode<unknown, V, VE>): Decode<unknown, Record<K, V>, UnexpectedInput<'Record<string, unknown>', unknown> | KeyItemsFailed<readonly AtKey<unknown, KE | VE>[]>> =>
   i => {
     if (Object.prototype.toString.call(i) !== '[object Object]')
       return fail({ type: 'UnexpectedInput', expected: 'Record<string, unknown>', input: i })
@@ -121,7 +124,7 @@ export const record = <K extends PropertyKey, V, KE, VE>(keys: Decode<unknown, K
       : fail({ type: 'KeyItemsFailed', errors })
   }
 
-export const object = record(string, unknown)
+export const object = objectMap(string, unknown)
 
 type DecodeRecordInput<R extends Record<string, Decode<unknown, unknown, unknown>>> = {
   readonly [K in keyof R as string]: Input<R[K]>
@@ -135,7 +138,7 @@ type DecodeRecordErrors<R extends Record<string, Decode<unknown, unknown, unknow
   readonly [K in keyof R]: Errors<R[K]>
 }[keyof R]
 
-export const properties = <R extends Record<string, Decode<unknown, unknown, unknown>>>(r: R): Decode<DecodeRecordInput<R>, DecodeRecordResult<R>, KeyItemsFailed<readonly AtKey<keyof R, DecodeRecordErrors<R>>[]>> =>
+export const record = <R extends Record<string, Decode<unknown, unknown, unknown>>>(r: R): Decode<DecodeRecordInput<R>, DecodeRecordResult<R>, KeyItemsFailed<readonly AtKey<keyof R, DecodeRecordErrors<R>>[]>> =>
   ri => {
     const ro: Record<string, unknown> = {}
     const errors: AtKey<keyof R, DecodeRecordErrors<R>>[] = []
@@ -145,7 +148,7 @@ export const properties = <R extends Record<string, Decode<unknown, unknown, unk
       else ro[k] = ir.value
     }
 
-    return Object.keys(errors).length === 0
+    return errors.length === 0
       ? ok(ro as DecodeRecordResult<R>)
       : fail({ type: 'KeyItemsFailed', errors })
   }
