@@ -15,6 +15,9 @@ export const fail = <E>(error: E): Fail<E> => ({ ok: false, error })
 export const decode = <I, O, E>(d: Decode<I, O, E>, i: I): DecodeResult<O, E> =>
   d(i)
 
+export const is = <I, O extends I, E>(d: Decode<I, O, E>, i: I): i is O =>
+  decode(d, i).ok
+
 export const pipe = <I, X, O, E1, E2>(d1: Decode<I, X, E1>, d2: Decode<X, O, E2>): Decode<I, O, E1 | E2> =>
   i => {
     const x = decode(d1, i)
@@ -44,7 +47,7 @@ export const label = <L>(label: L) => <A>(value: A): Label<L, A> =>
 export const context = <Context, I, O, E>(context: Context, d: Decode<I, O, E>): Decode<I, O, Label<Context, E>> =>
   mapError(d, label(context))
 
-export const or = <I1, I2, O1, O2, E1, E2>(d1: Decode<I1, O1, E1>, d2: Decode<I2, O2, E2>): Decode<I1 & I2, O1 | O2, [E1, E2] | E1 | E2> =>
+export const or = <I1, I2, O1, O2, E1, E2>(d1: Decode<I1, O1, E1>, d2: Decode<I2, O2, E2>): Decode<I1 & I2, O1 | O2, [E1, E2]> =>
   i => {
     const r1 = d1(i)
     if (r1.ok) return r1
@@ -66,17 +69,17 @@ export type UnexpectedInput<H, I> = { type: 'UnexpectedInput', expected: H, inpu
 export const exactly = <A>(a: A): Decode<unknown, A, UnexpectedInput<A, unknown>> =>
   input => input === a ? ok(input as A) : fail({ type: 'UnexpectedInput', expected: a, input })
 
-export const is = <Hint, O extends I, I = unknown>(expected: Hint, p: (input: I) => input is O): Decode<I, O, UnexpectedInput<Hint, I>> =>
+export const guard = <Hint, O extends I, I = unknown>(expected: Hint, p: (input: I) => input is O): Decode<I, O, UnexpectedInput<Hint, I>> =>
   input => p(input)
     ? ok(input as O)
     : fail({ type: 'UnexpectedInput', expected, input })
 
-export const number = is('number' as const, (x: unknown): x is number => typeof x === 'number')
-export const string = is('string' as const, (x: unknown): x is string => typeof x === 'string')
-export const boolean = is('boolean' as const, (x: unknown): x is boolean => typeof x === 'boolean')
-export const unknown = is('unknown' as const, (x: unknown): x is unknown => true)
+export const number = guard('number' as const, (x: unknown): x is number => typeof x === 'number')
+export const string = guard('string' as const, (x: unknown): x is string => typeof x === 'string')
+export const boolean = guard('boolean' as const, (x: unknown): x is boolean => typeof x === 'boolean')
+export const unknown = guard('unknown' as const, (x: unknown): x is unknown => true)
 
-export const array = is('unknown[]' as const, (x: unknown): x is readonly unknown[] => Array.isArray(x))
+export const array = guard('unknown[]' as const, (x: unknown): x is readonly unknown[] => Array.isArray(x))
 
 export type KeyItemsFailed<E> = { type: 'KeyItemsFailed', errors: E }
 export type AtKey<K, E> = { type: 'AtKey', key: K, error: E }
