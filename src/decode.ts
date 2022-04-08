@@ -5,9 +5,9 @@ export type Ok<O> = { ok: true, value: O }
 export type Fail<E> = { ok: false, error: E }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Input<D extends Decode<any, unknown, unknown>> = D extends Decode<infer I, unknown, unknown> ? I : never
-export type Output<D extends Decode<any, unknown, unknown>> = D extends Decode<any, infer O, unknown> ? O : never
-export type Errors<D extends Decode<any, unknown, unknown>> = D extends Decode<any, unknown, infer E> ? E : never
+export type Input<D> = D extends Decode<infer I, unknown, unknown> ? I : never
+export type Output<D> = D extends Decode<any, infer O, unknown> ? O : never
+export type Errors<D> = D extends Decode<any, unknown, infer E> ? E : never
 
 export const ok = <O>(value: O): Ok<O> => ({ ok: true, value })
 export const fail = <E>(error: E): Fail<E> => ({ ok: false, error })
@@ -50,15 +50,33 @@ export const label = <L>(label: L) => <A>(value: A): Label<L, A> =>
 export const context = <Context, I, O, E>(context: Context, d: Decode<I, O, E>): Decode<I, O, Label<Context, E>> =>
   mapError(d, label(context))
 
-export const or = <I1, I2, O1, O2, E1, E2>(d1: Decode<I1, O1, E1>, d2: Decode<I2, O2, E2>): Decode<I1 & I2, O1 | O2, [E1, E2]> =>
+export type OneOf<E> = { type: 'OneOf', errors: E }
+
+export type Intersect<A extends readonly any[]> = A extends [infer Head, ...infer Tail]
+  ? Head extends (i: infer I) => any
+  ? I & Intersect<Tail>
+  : Intersect<Tail>
+  : unknown
+
+export const or = <D extends readonly [Decode<any, unknown, unknown>, Decode<any, unknown, unknown>, ...Decode<any, unknown, unknown>[]], K extends number & keyof D>(...d: D): Decode<Intersect<D>, ProductOutput<K, D>[K], OneOf<readonly ProductErrors<K, D>[]>> =>
+  i => {
+    const errors = []
+    for (let k = 0; k < d.length; k++) {
+      const r = d[k](i)
+      if (r.ok) return r as Ok<ProductOutput<K, D>[typeof k]>
+      errors.push(r.error)
+    }
+
+    return fail({ type: 'OneOf', errors }) as Fail<OneOf<readonly ProductErrors<K, D>[]>>
+  }
+
+export const and = <I1, I2, O1, O2, R, E1, E2>(d1: Decode<I1, O1, E1>, d2: Decode<I2, O2, E2>, f: (o1: O1, o2: O2) => R): Decode<I1 & I2, R, E1 | E2 | [E1, E2]> =>
   i => {
     const r1 = d1(i)
-    if (r1.ok) return r1
-
     const r2 = d2(i)
-    if (r2.ok) return r2
 
-    return fail([r1.error, r2.error])
+    if (r1.ok) return r2.ok ? ok(f(r1.value, r2.value)) : r2
+    else return r2.ok ? r1 : fail([r1.error, r2.error])
   }
 
 export const nullable = <I, O, E>(d: Decode<I, O, E>) =>
@@ -67,88 +85,92 @@ export const nullable = <I, O, E>(d: Decode<I, O, E>) =>
 export const optional = <I, O, E>(d: Decode<I, O, E>) =>
   or(d, exactly(undefined))
 
-export type UnexpectedInput<H, I> = { type: 'UnexpectedInput', expected: H, input: I }
+export type Expect<E, A> = { type: 'Expect', expected: E, value: A }
 
-export const exactly = <A>(a: A): Decode<unknown, A, UnexpectedInput<A, unknown>> =>
+export const expect = <Expected, I, O, E>(expected: Expected, d: Decode<I, O, E>): Decode<I, O, Expect<Expected, E>> =>
+  mapError(d, e => ({ type: 'Expect', expected, value: e }))
+
+export type UnexpectedInput<I> = { type: 'UnexpectedInput', input: I }
+
+export const exactly = <A>(a: A): Decode<unknown, A, UnexpectedInput<unknown>> =>
   input => input === a ? ok(input as A) : fail({ type: 'UnexpectedInput', expected: a, input })
 
-export const guard = <Hint, O extends I, I = unknown>(expected: Hint, p: (input: I) => input is O): Decode<I, O, UnexpectedInput<Hint, I>> =>
+export const guard = <O extends I, I = unknown>(p: (input: I) => input is O): Decode<I, O, UnexpectedInput<I>> =>
   input => p(input)
     ? ok(input as O)
-    : fail({ type: 'UnexpectedInput', expected, input })
+    : fail({ type: 'UnexpectedInput', input })
 
-export const number = guard('number' as const, (x: unknown): x is number => typeof x === 'number')
-export const string = guard('string' as const, (x: unknown): x is string => typeof x === 'string')
-export const boolean = guard('boolean' as const, (x: unknown): x is boolean => typeof x === 'boolean')
-export const unknown = guard('unknown' as const, (x: unknown): x is unknown => true)
+export const number = expect('number' as const, guard((x: unknown): x is number => typeof x === 'number'))
+export const string = expect('string' as const, guard((x: unknown): x is string => typeof x === 'string'))
+export const boolean = expect('boolean' as const, guard((x: unknown): x is boolean => typeof x === 'boolean'))
+export const unknown = expect('unknown' as const, guard((x: unknown): x is unknown => true))
 
-export const array = guard('unknown[]' as const, (x: unknown): x is readonly unknown[] => Array.isArray(x))
+export const array = expect('unknown[]' as const, guard((x: unknown): x is readonly unknown[] => Array.isArray(x)))
 
-export type KeyItemsFailed<E> = { type: 'KeyItemsFailed', errors: E }
-export type AtKey<K, E> = { type: 'AtKey', key: K, error: E }
+export type KeyItemsFailed<C, E> = { type: 'KeyItemsFailed', context: C, errors: E }
 
-export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], readonly O[], KeyItemsFailed<readonly AtKey<number, E>[]>> =>
+export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], readonly O[], KeyItemsFailed<readonly I[], readonly Label<number, E>[]>> =>
   ai => {
     const r: unknown[] = []
-    const errors: AtKey<number, E>[] = []
+    const errors: Label<number, E>[] = []
     for (let k = 0; k < ai.length; k++) {
       const ir = decode(d, ai[k])
-      if (!ir.ok) errors.push({ type: 'AtKey', key: k, error: ir.error })
+      if (!ir.ok) errors.push({ type: 'Label', label: k, value: ir.error })
       else r.push(ir.value)
     }
-    return errors.length === 0 ? ok(r) as Ok<readonly O[]> : fail({ type: 'KeyItemsFailed', errors })
+    return errors.length === 0 ? ok(r) as Ok<readonly O[]> : fail({ type: 'KeyItemsFailed', context: ai, errors })
   }
 
-export const objectMap = <K extends PropertyKey, V, KE, VE>(keys: Decode<unknown, K, KE>, values: Decode<unknown, V, VE>): Decode<unknown, Record<K, V>, UnexpectedInput<'Record<string, unknown>', unknown> | KeyItemsFailed<readonly AtKey<unknown, KE | VE>[]>> =>
-  i => {
-    if (Object.prototype.toString.call(i) !== '[object Object]')
-      return fail({ type: 'UnexpectedInput', expected: 'Record<string, unknown>', input: i })
+export const object = expect('object' as const, guard((x: unknown): x is Record<string, unknown> =>
+  Object.prototype.toString.call(x) === '[object Object]'))
 
-    const r = i as Record<PropertyKey, unknown>
-    const ks = Object.keys(r)
-    const errors: AtKey<unknown, KE | VE>[] = []
-    const result = {} as Record<K, V>
+export type ProductInput<K extends PropertyKey, R extends Record<K, Decode<any, unknown, unknown>>> = {
+  readonly [K in keyof R]: Input<R[K]>
+}
 
-    for (const k of ks) {
-      const kr = keys(k)
-      if (!kr.ok) errors.push({ type: 'AtKey', key: k, error: kr.error })
+export type ProductOutput<K extends PropertyKey, R extends Record<K, Decode<any, unknown, unknown>>> = {
+  readonly [K in keyof R]: Output<R[K]>
+}
+
+export type ProductErrors<K extends PropertyKey, R extends Record<K, Decode<any, unknown, unknown>>> = {
+  readonly [K in keyof R]: Errors<R[K]>
+}
+
+export type Missing<E> = { type: 'Missing', value: E }
+
+export const record = <R extends Record<string, Decode<unknown, unknown, unknown>>>(r: R): Decode<Record<string, unknown>, ProductOutput<keyof R, R>, KeyItemsFailed<Record<string, unknown>, readonly Label<keyof R, Missing<ProductErrors<keyof R, R>> | ProductErrors<keyof R, R>>[]>> =>
+  ri => {
+    const ro: Record<string, unknown> = {}
+    const errors: Label<keyof R, Missing<ProductErrors<keyof R, R>> | ProductErrors<keyof R, R>>[] = []
+    for (const k of Object.keys(r)) {
+      const ir = decode(r[k], ri[k]) as DecodeResult<ProductOutput<keyof R, R>[keyof R], ProductErrors<keyof R, R>>
+      if (ir.ok) ro[k] = ir.value
       else {
-        const kv = values(r[k])
-        if (!kv.ok) errors.push({ type: 'AtKey', key: k, error: kv.error })
-        else result[kr.value] = kv.value
+        if (k in ri) errors.push({ type: 'Label', label: k, value: ir.error })
+        else errors.push({ type: 'Label', label: k, value: { type: 'Missing', value: ir.error } })
       }
     }
 
     return errors.length === 0
-      ? ok(result)
-      : fail({ type: 'KeyItemsFailed', errors })
+      ? ok(ro as ProductOutput<keyof R, R>)
+      : fail({ type: 'KeyItemsFailed', context: ri, errors })
   }
 
-export const object = objectMap(string, unknown)
-
-type DecodeRecordInput<R extends Record<string, Decode<unknown, unknown, unknown>>> = {
-  readonly [K in keyof R as string]: Input<R[K]>
-}
-
-type DecodeRecordResult<R extends Record<string, Decode<unknown, unknown, unknown>>> = {
-  readonly [K in keyof R]: Output<R[K]>
-}
-
-type DecodeRecordErrors<R extends Record<string, Decode<unknown, unknown, unknown>>> = {
-  readonly [K in keyof R]: Errors<R[K]>
-}[keyof R]
-
-export const record = <R extends Record<string, Decode<unknown, unknown, unknown>>>(r: R): Decode<DecodeRecordInput<R>, DecodeRecordResult<R>, KeyItemsFailed<readonly AtKey<keyof R, DecodeRecordErrors<R>>[]>> =>
+export const tuple = <R extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof R>(...r: R): Decode<readonly unknown[], ProductOutput<K, R>, KeyItemsFailed<readonly unknown[], readonly Label<keyof R, Missing<ProductErrors<K, R>> | ProductErrors<K, R>>[]>> =>
   ri => {
-    const ro: Record<string, unknown> = {}
-    const errors: AtKey<keyof R, DecodeRecordErrors<R>>[] = []
-    for (const k of Object.keys(r)) {
-      const ir = decode(r[k], ri[k]) as DecodeResult<DecodeRecordResult<R>[keyof R], DecodeRecordErrors<R>>
-      if (!ir.ok) errors.push({ type: 'AtKey', key: k, error: ir.error })
-      else ro[k] = ir.value
+    const ro = [] as unknown[]
+    const errors: Label<keyof R, Missing<ProductErrors<K, R>> | ProductErrors<K, R>>[] = []
+    for (let k = 0; k < r.length; k++) {
+      const ir = decode(r[k], ri[k]) as DecodeResult<ProductOutput<K, R>[keyof R], ProductErrors<K, R>>
+      if (ir.ok) ro[k] = ir.value
+      else {
+        if (k in ri) errors.push({ type: 'Label', label: k, value: ir.error })
+        else errors.push({ type: 'Label', label: k, value: { type: 'Missing', value: ir.error } })
+      }
     }
 
     return errors.length === 0
-      ? ok(ro as DecodeRecordResult<R>)
-      : fail({ type: 'KeyItemsFailed', errors })
+      ? ok(ro as unknown as ProductOutput<K, R>)
+      : fail({ type: 'KeyItemsFailed', context: ri, errors })
+
   }
