@@ -1,4 +1,4 @@
-import { DecodeResult, ok, fail } from './decode'
+import { DecodeResult, ok } from './decode'
 
 export type Json = number | string | boolean | readonly Json[] | JsonObject<Json>
 
@@ -13,10 +13,10 @@ export interface HasToJson {
 
 export type JsonParseError = { type: 'JsonParseError', error: unknown }
 
-export const json = (s: string): DecodeResult<Json, JsonParseError> => {
+export const json = (s: string, reviver?: (key: string, value: string) => any): DecodeResult<Json, JsonParseError> => {
   try {
-    return ok(JSON.parse(s))
-  } catch (e) {
-    return fail({ type: 'JsonParseError', error: e })
+    return ok(JSON.parse(s, reviver))
+  } catch (error) {
+    return { type: 'JsonParseError', error }
   }
 }
