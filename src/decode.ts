@@ -1,4 +1,10 @@
-export type Decode<I, O, E> = (i: I) => DecodeResult<O, E>
+/**
+ * A Decoder attempts to map an input type to an output type
+ * with the possibilty of failure, represented by the type E.
+ */
+export interface Decode<I, O, E> {
+  (i: I): DecodeResult<O, E>
+}
 
 export type DecodeResult<O, E> = Ok<O> | E
 export type Ok<O> = { type: 'ok', value: O }
@@ -70,7 +76,7 @@ export const or = <Decoders extends AtLeastTwo<Decode<any, unknown, unknown>>, K
     for (let k = 0; k < d.length; k++) {
       const r = decode(d[k], i)
       if (isOk(r)) return r as Ok<ProductOutput<Decoders, K>[typeof k]>
-      errors.push(r)
+      else errors.push(r)
     }
 
     return { type: 'OneOf', errors } as OneOf<readonly ProductErrors<Decoders, K>[]>
@@ -151,19 +157,6 @@ export const object = expect('object' as const, refine((x: unknown): x is Record
 
 export type KeyItemsFailed<C, E> = { type: 'KeyItemsFailed', context: C, errors: E }
 
-/** Accepts an array of values accepted by the provided decoder */
-export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], readonly O[], KeyItemsFailed<readonly I[], readonly Label<number, E>[]>> =>
-  ai => {
-    const r: unknown[] = []
-    const errors: Label<number, E>[] = []
-    for (let k = 0; k < ai.length; k++) {
-      const ir = decode(d, ai[k])
-      if (isOk(ir)) r[k] = ir.value
-      else errors.push({ type: 'Label', label: k, value: ir })
-    }
-    return errors.length === 0 ? ok(r) as Ok<readonly O[]> : { type: 'KeyItemsFailed', context: ai, errors }
-  }
-
 export type ProductInput<R extends Record<K, Decode<any, unknown, unknown>>, K extends keyof R = keyof R> = {
   readonly [K in keyof R]: Input<R[K]>
 }
@@ -178,27 +171,60 @@ export type ProductErrors<R extends Record<K, Decode<any, unknown, unknown>>, K 
 
 export type Missing<E> = { type: 'Missing', value: E }
 
+export type DecodeRecord<Fields extends Record<string, Decode<any, unknown, unknown>>> =
+  Decode<
+    Record<string, unknown>,
+    { readonly [K in keyof Fields]: Output<Fields[K]> },
+    KeyItemsFailed<
+      Record<string, unknown>,
+      readonly Label<keyof Fields, ProductErrors<Fields> | Missing<ProductErrors<Fields>>>[]
+    >
+  >
+
 /** Given an object, refines fields using the provided decoders */
-export const record = <R extends Record<string, Decode<unknown, unknown, unknown>>>(r: R): Decode<Record<string, unknown>, ProductOutput<R>, KeyItemsFailed<Record<string, unknown>, readonly Label<keyof R, Missing<ProductErrors<R>> | ProductErrors<R>>[]>> =>
+export const record = <Fields extends Record<string, Decode<any, unknown, unknown>>>(r: Fields): DecodeRecord<Fields> =>
   ri => {
     const ro: Record<string, unknown> = {}
-    const errors: Label<keyof R, Missing<ProductErrors<R>> | ProductErrors<R>>[] = []
+    const errors = []
     for (const k of Object.keys(r)) {
-      const ir = decode(r[k], ri[k]) as DecodeResult<ProductOutput<R>[keyof R], ProductErrors<R>>
+      const ir = decode(r[k], ri[k]) as DecodeResult<Output<Fields[keyof Fields]>, ProductErrors<Fields>>
       if (isOk(ir)) ro[k] = ir.value
       else {
-        if (k in ri) errors.push({ type: 'Label', label: k, value: ir })
-        else errors.push({ type: 'Label', label: k, value: { type: 'Missing', value: ir } })
+        if (k in ri) errors.push({ type: 'Label', label: k, value: ir } as const)
+        else errors.push({ type: 'Label', label: k, value: { type: 'Missing', value: ir } } as const)
       }
     }
 
     return errors.length === 0
-      ? ok(ro as ProductOutput<R>)
+      ? ok(ro as ProductOutput<Fields>)
       : { type: 'KeyItemsFailed', context: ri, errors }
   }
 
+/** Accepts an array of values accepted by the provided decoder */
+export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], readonly O[], KeyItemsFailed<readonly I[], readonly Label<number, E>[]>> =>
+  ai => {
+    const r: unknown[] = []
+    const errors: Label<number, E>[] = []
+    for (let k = 0; k < ai.length; k++) {
+      const ir = decode(d, ai[k])
+      if (isOk(ir)) r[k] = ir.value
+      else errors.push({ type: 'Label', label: k, value: ir })
+    }
+    return errors.length === 0 ? ok(r) as Ok<readonly O[]> : { type: 'KeyItemsFailed', context: ai, errors }
+  }
+
+export type DecodeTuple<R extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof R = number & keyof R> =
+  Decode<
+    readonly unknown[],
+    ProductOutput<R, K>,
+    KeyItemsFailed<
+      readonly unknown[],
+      readonly Label<K, Missing<ProductErrors<R, K>> | ProductErrors<R, K>>[]
+    >
+  >
+
 /** Given an array, refines a type using the provided decoders */
-export const tuple = <R extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof R>(...r: R): Decode<readonly unknown[], ProductOutput<R, K>, KeyItemsFailed<readonly unknown[], readonly Label<K, Missing<ProductErrors<R, K>> | ProductErrors<R, K>>[]>> =>
+export const tuple = <R extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof R>(...r: R): DecodeTuple<R, K> =>
   ri => {
     const ro = [] as unknown[]
     const errors: Label<K, Missing<ProductErrors<R, K>> | ProductErrors<R, K>>[] = []
