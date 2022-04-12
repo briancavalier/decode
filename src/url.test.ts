@@ -1,10 +1,10 @@
+import fc from 'fast-check'
 import { test } from 'tap'
 import { decode, isOk, ok } from './decode'
 import { url } from './url'
 
 test(url.name, t => {
-  const validUrl = 'https://foo.bar/baz'
-  t.same(decode(url, validUrl), ok(new URL(validUrl)), 'Accepts valid URL string')
-  t.notOk(isOk(decode(url, '')), 'Rejects invalid URL string')
+  fc.assert(fc.property(fc.webUrl(), x => t.same(decode(url, x), ok(new URL(x)))))
+  t.notOk(isOk(decode(url, '')))
   t.end()
 })

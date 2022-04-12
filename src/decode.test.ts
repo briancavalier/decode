@@ -1,40 +1,33 @@
 import { test } from 'tap'
-import { boolean, decode, isOk, number, ok, string } from './decode'
+import fc from 'fast-check'
+import { array, boolean, decode, isOk, number, ok, string } from './decode'
+
+test(isOk.name, t => {
+  fc.assert(fc.property(fc.anything(), x => t.ok(isOk(ok(x)))))
+  fc.assert(fc.property(fc.anything(), x => t.notOk(isOk(x))))
+  t.end()
+})
 
 test(number.name, t => {
-  const n = Math.random()
-  t.same(decode(number, n), ok(n), 'Accepts number')
-  t.notOk(isOk(decode(number, '')), 'Rejects non-number')
-  t.notOk(isOk(decode(number, {})), 'Rejects non-number')
-  t.notOk(isOk(decode(number, [])), 'Rejects non-number')
-  t.notOk(isOk(decode(number, null)), 'Rejects non-number')
-  t.notOk(isOk(decode(number, undefined)), 'Rejects non-number')
-  t.notOk(isOk(decode(number, true)), 'Rejects non-number')
-  t.notOk(isOk(decode(number, false)), 'Rejects non-number')
+  fc.assert(fc.property(fc.float(), x => t.same(decode(number, x), ok(x))))
+  fc.assert(fc.property(fc.anything().filter(x => typeof x !== 'number'), x => t.notSame(decode(number, x), ok(x))))
   t.end()
 })
 
 test(string.name, t => {
-  const s = `${Math.random()}`
-  t.same(decode(string, s), ok(s), 'Accepts string')
-  t.notOk(isOk(decode(string, Math.random())), 'Rejects non-string')
-  t.notOk(isOk(decode(string, {})), 'Rejects non-string')
-  t.notOk(isOk(decode(string, [])), 'Rejects non-string')
-  t.notOk(isOk(decode(string, null)), 'Rejects non-number')
-  t.notOk(isOk(decode(string, undefined)), 'Rejects non-number')
-  t.notOk(isOk(decode(string, true)), 'Rejects non-number')
-  t.notOk(isOk(decode(string, false)), 'Rejects non-number')
+  fc.assert(fc.property(fc.string(), x => t.same(decode(string, x), ok(x))))
+  fc.assert(fc.property(fc.anything().filter(x => typeof x !== 'string'), x => t.notSame(decode(string, x), ok(x))))
   t.end()
 })
 
 test(boolean.name, t => {
-  t.same(decode(boolean, true), ok(true), 'Accepts string')
-  t.same(decode(boolean, false), ok(false), 'Accepts string')
-  t.notOk(isOk(decode(boolean, '')), 'Rejects non-boolean')
-  t.notOk(isOk(decode(boolean, Math.random())), 'Rejects non-boolean')
-  t.notOk(isOk(decode(boolean, {})), 'Rejects non-boolean')
-  t.notOk(isOk(decode(boolean, [])), 'Rejects non-boolean')
-  t.notOk(isOk(decode(boolean, null)), 'Rejects non-boolean')
-  t.notOk(isOk(decode(boolean, undefined)), 'Rejects non-boolean')
+  fc.assert(fc.property(fc.boolean(), x => t.same(decode(boolean, x), ok(x))))
+  fc.assert(fc.property(fc.anything().filter(x => typeof x !== 'boolean'), x => t.notSame(decode(boolean, x), ok(x))))
+  t.end()
+})
+
+test(array.name, t => {
+  fc.assert(fc.property(fc.array(fc.anything()), x => t.same(decode(array, x), ok(x))))
+  fc.assert(fc.property(fc.anything().filter(x => !Array.isArray(x)), x => t.notSame(decode(array, x), ok(x))))
   t.end()
 })

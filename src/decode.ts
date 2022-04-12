@@ -1,5 +1,3 @@
-import { assert, assertOk } from './assert'
-
 /**
  * A Decoder attempts to map an input type to an output type
  * with the possibilty of failure, represented by the type E.
