@@ -6,13 +6,13 @@ import { Stringifiable, renderFailure } from './fail'
  * If not successful, throw DecodeAssertError describing the failure
  */
 export const assert = <I, O, E>(d: Decode<I, O, E>, i: I): O =>
-  assertOk(decode(d, i)).value
+  assertOk(decode(d, i))
 
 /**
  * If r is Ok, return r, otherwise throw DecodeAssertError
  */
-export const assertOk = <A, _>(r: Ok<A> | _): Ok<A> => {
-  if (isOk(r)) return r
+export const assertOk = <A, _>(r: Ok<A> | _): A => {
+  if (isOk(r)) return r.value
   throw new DecodeAssertError(r as unknown as Stringifiable)
 }
 
