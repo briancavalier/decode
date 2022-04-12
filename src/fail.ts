@@ -1,6 +1,7 @@
-import { KeyItemsFailed, UnexpectedInput, Label, Expect, Missing, OneOf, AllOf } from './decode'
+import { KeyItemsFailed, UnexpectedInput, Label, Expect, Missing, OneOf, AllOf, Variant } from './decode'
 
-type Node<T extends string> = { type: T }
+type Node<T extends string> = Variant<T, object>
+
 type ErrorAST = OneOf<readonly Node<string>[]> | AllOf<readonly Node<string>[]> | KeyItemsFailed<unknown, readonly Stringifiable[]> | UnexpectedInput<unknown> | Expect<unknown, Node<string>> | Label<unknown, Node<string>> | Missing<Node<string>>
 export type Stringifiable = string | Error | Node<string> | readonly Stringifiable[] | ErrorAST
 
