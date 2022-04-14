@@ -1,3 +1,5 @@
+import { assert, assertOk } from './assert'
+
 /**
  * A Decoder attempts to map an input type to an output type
  * with the possibilty of failure, represented by the type E.
@@ -9,15 +11,20 @@ export interface Decode<I, O, E> {
 /** Open variant used to represent decoding results */
 export type Variant<T, A> = { readonly type: T } & A
 
-export type DecodeResult<O, E> = Ok<O> | E
+export type DecodeResult<O, E> = Ok<O> | Fail<E>
+
 export type Ok<O> = Variant<'ok', { value: O }>
+export type Fail<E> = Variant<'fail', { error: E }>
 
 /** Construct an Ok */
 export const ok = <O>(value: O): Ok<O> => ({ type: 'ok', value })
 
 /** Check if DecodeResult is Ok */
-export const isOk = <A, _>(x: Ok<A> | _): x is Ok<A> =>
-  !!x && (x as any).type === 'ok'
+export const isOk = <A, E>(r: DecodeResult<A, E>): r is Ok<A> =>
+  r.type === 'ok'
+
+/** Construct a Fail */
+export const fail = <E>(error: E): Fail<E> => ({ type: 'fail', error })
 
 export type Input<D> = D extends Decode<infer I, unknown, unknown> ? I : never
 export type Output<D> = D extends Decode<any, infer O, unknown> ? O : never
@@ -34,10 +41,6 @@ export const pipe = <I, X, O, E1, E2>(d1: Decode<I, X, E1>, d2: Decode<X, O, E2>
     return isOk(x) ? decode(d2, x.value) : x
   }
 
-/** Create a decoder from a function */
-export const map = <I, O>(f: (i: I) => O): Decode<I, O, never> =>
-  i => ok(f(i))
-
 /** Transform the output of a decoder */
 export const mapInput = <I1, I2, O, E>(f: (i: I1) => I2, d: Decode<I2, O, E>): Decode<I1, O, E> =>
   pipe(map(f), d)
@@ -50,7 +53,7 @@ export const mapOutput = <I, O1, O2, E>(d: Decode<I, O1, E>, f: (o: O1) => O2): 
 export const mapError = <I, O, E1, E2>(d: Decode<I, O, E1>, f: (e: E1) => E2): Decode<I, O, E2> =>
   i => {
     const o = decode(d, i)
-    return isOk(o) ? o : f(o)
+    return isOk(o) ? o : fail(f(o.error))
   }
 
 /** Label a value */
@@ -63,7 +66,7 @@ export const label = <L>(label: L) => <A>(value: A): Label<L, A> =>
 export const context = <Context, I, O, E>(context: Context, d: Decode<I, O, E>): Decode<I, O, Label<Context, E>> =>
   mapError(d, label(context))
 
-export type OneOf<E> = Variant<'OneOf', { errors: E }>
+export type OneOf<E> = Variant<'OneOf', { readonly errors: E }>
 
 export type Intersect<A extends readonly any[]> = A extends [infer Head, ...infer Tail]
   ? Head extends (i: infer I) => any
@@ -76,14 +79,14 @@ export type AtLeastTwo<A> = readonly [A, A, ...readonly A[]]
 /** Create a decoder that accepts values accepted by any of the provided decoders */
 export const or = <Decoders extends AtLeastTwo<Decode<any, unknown, unknown>>, K extends number & keyof Decoders>(...d: Decoders): Decode<Intersect<Decoders>, ProductOutput<Decoders, K>[K], OneOf<readonly ProductErrors<Decoders, K>[]>> =>
   i => {
-    const errors = []
+    const errors: ProductErrors<Decoders, K>[] = []
     for (let k = 0; k < d.length; k++) {
       const r = decode(d[k], i)
       if (isOk(r)) return r as Ok<ProductOutput<Decoders, K>[typeof k]>
-      else errors.push(r)
+      else errors.push(r.error as ProductErrors<Decoders, K>)
     }
 
-    return { type: 'OneOf', errors } as OneOf<readonly ProductErrors<Decoders, K>[]>
+    return fail({ type: 'OneOf', errors })
   }
 
 export type AllOf<E> = Variant<'AllOf', { errors: E }>
@@ -94,17 +97,17 @@ export type AllOf<E> = Variant<'AllOf', { errors: E }>
  */
 export const and = <Decoders extends AtLeastTwo<Decode<any, unknown, unknown>>, K extends number & keyof Decoders, R>(f: (...o: ProductOutput<Decoders, K>) => R, ...d: Decoders): Decode<Intersect<Decoders>, R, AllOf<readonly ProductErrors<Decoders, K>[]>> =>
   i => {
-    const errors = []
+    const errors: ProductErrors<Decoders, K>[] = []
     const results = []
     for (let k = 0; k < d.length; k++) {
       const r = decode(d[k], i)
       if (isOk(r)) results.push(r.value)
-      else errors.push(r)
+      else errors.push(r.error as ProductErrors<Decoders, K>)
     }
 
     return errors.length === 0
       ? ok(f(...results as unknown as ProductOutput<Decoders, K>))
-      : { type: 'AllOf', errors } as AllOf<readonly ProductErrors<Decoders, K>[]>
+      : fail({ type: 'AllOf', errors })
   }
 
 /** Given a decoder, create a new decoder that accepts all the values of the original plus null */
@@ -121,7 +124,7 @@ export type Expect<E, A> = Variant<'Expect', { expected: E, value: A }>
 export const expect = <Expected, I, O, E>(expected: Expected, d: Decode<I, O, E>): Decode<I, O, Expect<Expected, E>> =>
   mapError(d, e => ({ type: 'Expect', expected, value: e }))
 
-export type UnexpectedInput<I> = { type: 'UnexpectedInput', input: I }
+export type UnexpectedInput<I> = Variant<'UnexpectedInput', { readonly input: I }>
 
 // ---------------------------------------------------------------------------------------
 // Decoders
@@ -132,13 +135,17 @@ export const always = <O>(o: O): Decode<unknown, O, never> =>
 
 /** Create a decoder that accepts only the provided a */
 export const exactly = <A extends number | string | boolean | null | undefined | readonly unknown[] | Record<PropertyKey, unknown>>(a: A): Decode<unknown, A, UnexpectedInput<unknown>> =>
-  input => input === a ? ok(input as A) : { type: 'UnexpectedInput', expected: a, input }
+  input => input === a ? ok(input as A) : fail({ type: 'UnexpectedInput', expected: a, input } as const)
+
+/** Create a decoder from a function */
+export const map = <I, O>(f: (i: I) => O): Decode<I, O, never> =>
+  i => ok(f(i))
 
 /** Create a decoder from a refinement */
 export const refine = <I, O extends I>(p: (input: I) => input is O): Decode<I, O, UnexpectedInput<I>> =>
   input => p(input)
     ? ok(input as O)
-    : { type: 'UnexpectedInput', input }
+    : fail({ type: 'UnexpectedInput', input } as const)
 
 /** Accepts any number */
 export const number = expect('number' as const, refine((x: unknown): x is number => typeof x === 'number'))
@@ -189,19 +196,19 @@ export type DecodeRecord<Fields extends Record<string, Decode<any, unknown, unkn
 export const record = <Fields extends Record<string, Decode<any, unknown, unknown>>>(r: Fields): DecodeRecord<Fields> =>
   ri => {
     const ro: Record<string, unknown> = {}
-    const errors = []
+    const errors: Label<keyof Fields, ProductErrors<Fields> | Missing<ProductErrors<Fields>>>[] = []
     for (const k of Object.keys(r)) {
       const ir = decode(r[k], ri[k]) as DecodeResult<Output<Fields[keyof Fields]>, ProductErrors<Fields>>
       if (isOk(ir)) ro[k] = ir.value
       else {
-        if (k in ri) errors.push({ type: 'Label', label: k, value: ir } as const)
-        else errors.push({ type: 'Label', label: k, value: { type: 'Missing', value: ir } } as const)
+        if (k in ri) errors.push({ type: 'Label', label: k, value: ir.error })
+        else errors.push({ type: 'Label', label: k, value: { type: 'Missing', value: ir.error } })
       }
     }
 
     return errors.length === 0
       ? ok(ro as ProductOutput<Fields>)
-      : { type: 'KeyItemsFailed', context: ri, errors }
+      : fail({ type: 'KeyItemsFailed', context: ri, errors })
   }
 
 /** Accepts an array of values accepted by the provided decoder */
@@ -212,12 +219,12 @@ export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], reado
     for (let k = 0; k < ai.length; k++) {
       const ir = decode(d, ai[k])
       if (isOk(ir)) r[k] = ir.value
-      else errors.push({ type: 'Label', label: k, value: ir })
+      else errors.push({ type: 'Label', label: k, value: ir.error })
     }
 
     return errors.length === 0
       ? ok(r)
-      : { type: 'KeyItemsFailed', context: ai, errors }
+      : fail({ type: 'KeyItemsFailed', context: ai, errors })
   }
 
 export type DecodeTuple<T extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof T = number & keyof T> =
@@ -239,12 +246,12 @@ export const tuple = <Items extends readonly Decode<unknown, unknown, unknown>[]
       const ir = decode(r[k], ti[k]) as DecodeResult<ProductOutput<Items, K>[K], ProductErrors<Items, K>>
       if (isOk(ir)) ro[k] = ir.value
       else {
-        if (k in ti) errors.push({ type: 'Label', label: k as K, value: ir })
-        else errors.push({ type: 'Label', label: k as K, value: { type: 'Missing', value: ir } })
+        if (k in ti) errors.push({ type: 'Label', label: k as K, value: ir.error })
+        else errors.push({ type: 'Label', label: k as K, value: { type: 'Missing', value: ir.error } })
       }
     }
 
     return errors.length === 0
       ? ok(ro as unknown as ProductOutput<Items, K>)
-      : { type: 'KeyItemsFailed', context: ti, errors }
+      : fail({ type: 'KeyItemsFailed', context: ti, errors })
   }

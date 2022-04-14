@@ -1,12 +1,12 @@
-import { DecodeResult, ok } from './decode'
+import { DecodeResult, fail, ok, Variant } from './decode'
 
-export type InvalidUrlString = { type: 'InvalidUrlString', error: unknown }
+export type InvalidUrlString = Variant<'InvalidUrlString', { readonly error: unknown }>
 
 /** Decode a string to a URL */
 export const url = (s: string): DecodeResult<URL, InvalidUrlString> => {
   try {
     return ok(new URL(s))
   } catch (error) {
-    return { type: 'InvalidUrlString', error }
+    return fail({ type: 'InvalidUrlString', error } as const)
   }
 }

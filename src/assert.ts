@@ -1,4 +1,4 @@
-import { Decode, decode, isOk, Ok } from './decode'
+import { Decode, decode, DecodeResult, fail, isOk } from './decode'
 import { Stringifiable, renderFailure } from './fail'
 
 /**
@@ -11,9 +11,9 @@ export const assert = <I, O, E>(d: Decode<I, O, E>, i: I): O =>
 /**
  * If r is Ok, return r, otherwise throw DecodeAssertError
  */
-export const assertOk = <A, _>(r: Ok<A> | _): A => {
+export const assertOk = <A, E>(r: DecodeResult<A, E>): A => {
   if (isOk(r)) return r.value
-  throw new DecodeAssertError(r as unknown as Stringifiable)
+  throw new DecodeAssertError(r.error as unknown as Stringifiable)
 }
 
 class DecodeAssertError extends Error {

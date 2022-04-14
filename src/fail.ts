@@ -1,6 +1,6 @@
 import { KeyItemsFailed, UnexpectedInput, Label, Expect, Missing, OneOf, AllOf, Variant } from './decode'
 
-type Node<T extends string> = Variant<T, object>
+type Node<T extends string | symbol> = Variant<T, object>
 
 type ErrorAST = OneOf<readonly Node<string>[]> | AllOf<readonly Node<string>[]> | KeyItemsFailed<unknown, readonly Stringifiable[]> | UnexpectedInput<unknown> | Expect<unknown, Node<string>> | Label<unknown, Node<string>> | Missing<Node<string>>
 export type Stringifiable = string | Error | Node<string> | readonly Stringifiable[] | ErrorAST
@@ -8,6 +8,8 @@ export type Stringifiable = string | Error | Node<string> | readonly Stringifiab
 export const renderFailure = (s: Stringifiable, indent = '', pad = ' '): string => {
   if (typeof s === 'string') return s
   if (Array.isArray(s)) return s.map(x => renderFailure(x, indent + pad, pad)).join('\n')
+
+  if (s instanceof Error) return s.stack ?? s.message
 
   const n = s as ErrorAST
   if (n.type === 'KeyItemsFailed') {
@@ -25,7 +27,7 @@ export const renderFailure = (s: Stringifiable, indent = '', pad = ' '): string 
   if (n.type === 'UnexpectedInput') return `${renderValue(n.input)}`
 
   const { type, ...data } = n as Node<string>
-  return `${indent}${type}: ${JSON.stringify(data)} `
+  return `${indent}${String(type)}: ${renderValue(data)} `
 }
 
 const renderValue = (x: unknown): string =>
