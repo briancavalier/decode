@@ -1,4 +1,4 @@
-import { Decode, decode, DecodeResult, fail, isOk } from './decode'
+import { Decode, decode, DecodeResult, isOk } from './decode'
 import { Stringifiable, renderFailure } from './fail'
 
 /**

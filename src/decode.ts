@@ -1,5 +1,3 @@
-import { assert, assertOk } from './assert'
-
 /**
  * A Decoder attempts to map an input type to an output type
  * with the possibilty of failure, represented by the type E.
@@ -35,11 +33,21 @@ export const decode = <I, O, E>(d: Decode<I, O, E>, i: I): DecodeResult<O, E> =>
   d(i)
 
 /** Feed the result of one decoder into another */
-export const pipe = <I, X, O, E1, E2>(d1: Decode<I, X, E1>, d2: Decode<X, O, E2>): Decode<I, O, E1 | E2> =>
-  i => {
-    const x = decode(d1, i)
-    return isOk(x) ? decode(d2, x.value) : x
+export function pipe<A, B, O, E1, E2>(d1: Decode<A, B, E1>, d2: Decode<B, O, E2>): Decode<A, O, E1 | E2>
+export function pipe<A, B, C, O, E1, E2, E3>(d1: Decode<A, B, E1>, d2: Decode<B, C, E2>, d3: Decode<C, O, E3>): Decode<A, O, E1 | E2 | E3>
+export function pipe<A, B, C, D, O, E1, E2, E3, E4>(d1: Decode<A, B, E1>, d2: Decode<B, C, E2>, d3: Decode<C, D, E3>, d4: Decode<D, O, E4>): Decode<A, O, E1 | E2 | E3 | E4>
+export function pipe<A, B, C, D, E, O, E1, E2, E3, E4, E5>(d1: Decode<A, B, E1>, d2: Decode<B, C, E2>, d3: Decode<C, D, E3>, d4: Decode<D, E, E4>, d5: Decode<E, O, E5>): Decode<A, O, E1 | E2 | E3 | E4 | E5>
+export function pipe<A, B, C, E1, E2>(...ds: readonly Decode<unknown, unknown, unknown>[]): Decode<unknown, unknown, unknown> {
+  return i => {
+    let x = i
+    for (const d of ds) {
+      const r = d(x)
+      if (!isOk(r)) return r
+      x = r.value
+    }
+    return ok(x)
   }
+}
 
 /** Transform the output of a decoder */
 export const mapInput = <I1, I2, O, E>(f: (i: I1) => I2, d: Decode<I2, O, E>): Decode<I1, O, E> =>
@@ -141,6 +149,9 @@ export const exactly = <A extends number | string | boolean | null | undefined |
 export const map = <I, O>(f: (i: I) => O): Decode<I, O, never> =>
   i => ok(f(i))
 
+/** Accepts any value, cannot fail */
+export const unknown: Decode<unknown, unknown, never> = ok
+
 /** Create a decoder from a refinement */
 export const refine = <I, O extends I>(p: (input: I) => input is O): Decode<I, O, UnexpectedInput<I>> =>
   input => p(input)
@@ -155,9 +166,6 @@ export const string = expect('string' as const, refine((x: unknown): x is string
 
 /** Accepts true or false */
 export const boolean = expect('boolean' as const, refine((x: unknown): x is boolean => typeof x === 'boolean'))
-
-/** Accepts any value */
-export const unknown = expect('unknown' as const, refine((x: unknown): x is unknown => true))
 
 /** Accepts an array of any items */
 export const array = expect('unknown[]' as const, refine((x: unknown): x is readonly unknown[] => Array.isArray(x)))
