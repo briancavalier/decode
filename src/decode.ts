@@ -49,15 +49,23 @@ export function pipe<A, B, C, E1, E2>(...ds: readonly Decode<unknown, unknown, u
   }
 }
 
-/** Transform the output of a decoder */
+/**
+ * Transform the input of a decoder
+ * @deprecated Use pipe(map(f), d) instead
+ */
 export const mapInput = <I1, I2, O, E>(f: (i: I1) => I2, d: Decode<I2, O, E>): Decode<I1, O, E> =>
   pipe(map(f), d)
 
-/** Transform the input of a decoder */
+/**
+ * Transform the output of a decoder
+ * @deprecated Use pipe(d, map(f)) instead
+ */
 export const mapOutput = <I, O1, O2, E>(d: Decode<I, O1, E>, f: (o: O1) => O2): Decode<I, O2, E> =>
   pipe(d, map(f))
 
-/** Transform the error of a decoder */
+/**
+ * Transform the error of a decoder
+ */
 export const mapError = <I, O, E1, E2>(d: Decode<I, O, E1>, f: (e: E1) => E2): Decode<I, O, E2> =>
   i => {
     const o = decode(d, i)
@@ -190,18 +198,15 @@ export type ProductErrors<R extends Record<K, Decode<any, unknown, unknown>>, K 
 
 export type Missing<E> = Variant<'Missing', { value: E }>
 
-export type DecodeRecord<Fields extends Record<string, Decode<any, unknown, unknown>>> =
-  Decode<
-    Record<string, unknown>,
-    { readonly [K in keyof Fields]: Output<Fields[K]> },
-    KeyItemsFailed<
-      Record<string, unknown>,
-      readonly Label<keyof Fields, ProductErrors<Fields> | Missing<ProductErrors<Fields>>>[]
-    >
-  >
-
 /** Given an object, refines fields using the provided decoders */
-export const record = <Fields extends Record<string, Decode<any, unknown, unknown>>>(r: Fields): DecodeRecord<Fields> =>
+export const record = <Fields extends Record<string, Decode<any, unknown, unknown>>>(r: Fields): Decode<
+  Record<string, unknown>,
+  { readonly [K in keyof Fields]: Output<Fields[K]> },
+  KeyItemsFailed<
+    Record<string, unknown>,
+    readonly Label<keyof Fields, ProductErrors<Fields> | Missing<ProductErrors<Fields>>>[]
+  >
+> =>
   ri => {
     const ro: Record<string, unknown> = {}
     const errors: Label<keyof Fields, ProductErrors<Fields> | Missing<ProductErrors<Fields>>>[] = []
@@ -235,18 +240,15 @@ export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], reado
       : fail({ type: 'KeyItemsFailed', context: ai, errors })
   }
 
-export type DecodeTuple<T extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof T = number & keyof T> =
-  Decode<
-    readonly unknown[],
-    ProductOutput<T, K>,
-    KeyItemsFailed<
-      readonly unknown[],
-      readonly Label<K, Missing<ProductErrors<T, K>> | ProductErrors<T, K>>[]
-    >
-  >
-
 /** Given an array, refines a type using the provided decoders */
-export const tuple = <Items extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof Items>(...r: Items): DecodeTuple<Items> =>
+export const tuple = <Items extends readonly Decode<unknown, unknown, unknown>[], K extends number & keyof Items>(...r: Items): Decode<
+  readonly unknown[],
+  ProductOutput<Items, K>,
+  KeyItemsFailed<
+    readonly unknown[],
+    readonly Label<K, Missing<ProductErrors<Items, K>> | ProductErrors<Items, K>>[]
+  >
+> =>
   ti => {
     const ro = [] as unknown[]
     const errors: Label<K, Missing<ProductErrors<Items, K>> | ProductErrors<Items, K>>[] = []

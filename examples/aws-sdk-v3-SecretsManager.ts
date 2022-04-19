@@ -59,9 +59,3 @@ const fakeSecretsManagerOutput = {
 const result = decode(decodeSecretsManagerOutputToMySecrets, fakeSecretsManagerOutput)
 
 console.log(result)
-
-// If assertOk returns at all, result is guaranteed to be
-// of the expected type.  If it wasn't, then assertOk will throw
-const mySecrets = assertOk(result)
-
-console.log(mySecrets)
