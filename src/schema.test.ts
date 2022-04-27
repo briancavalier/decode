@@ -1,19 +1,7 @@
 import fc from 'fast-check'
 import { test } from 'tap'
-import { arrayOf, decode, isOk, number, string, boolean, object, pipe } from './decode'
-import { assertOk } from './assert'
+import { arrayOf, decode, isOk, number, string, boolean } from './decode'
 import { fromSchema } from './schema'
-
-// const schema = {
-//   a: string,
-//   b: number,
-//   c: {
-//     c1: boolean,
-//     c2: arrayOf(number)
-//   }
-// } as const
-
-// assertOk(pipe(object, fromSchema(schema))({ "a": 0, "b": {}, "c": {} }))
 
 test(fromSchema.name, t => {
   const schema = {

@@ -1,4 +1,3 @@
-import { assertOk } from './assert'
 import { Output, Decode, DecodeResult, fail, isOk, ok, KeyItemsFailed, Label, object, Errors } from './decode'
 
 /**

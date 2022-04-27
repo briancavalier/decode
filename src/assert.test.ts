@@ -7,7 +7,7 @@ test(assertOk.name, t => {
   // NOTE: NaN !== NaN, so use isNaN
   fc.assert(fc.property(fc.anything(), x => Number.isNaN(x)
     ? t.ok(Number.isNaN(assertOk(ok(x))))
-    : t.equal(assertOk(ok(x)), x)), { seed: -276356743, path: "67", endOnFailure: true })
+    : t.equal(assertOk(ok(x)), x)))
   // NOTE: t.throws returns the thrown value, but fc.assert expects
   // strict boolean true for success
   fc.assert(fc.property(fc.anything(), x => !!t.throws(() => assertOk(fail(x)))))
