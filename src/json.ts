@@ -11,6 +11,6 @@ export const json = (s: string, reviver?: (key: string, value: string) => any): 
   try {
     return ok(JSON.parse(s, reviver))
   } catch (error) {
-    return fail({ type: 'JsonParseError', error } as const)
+    return fail({ type: 'JsonParseError', error })
   }
 }

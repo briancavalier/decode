@@ -7,6 +7,6 @@ export const url = (s: string): DecodeResult<URL, InvalidUrlString> => {
   try {
     return ok(new URL(s))
   } catch (error) {
-    return fail({ type: 'InvalidUrlString', error } as const)
+    return fail({ type: 'InvalidUrlString', error })
   }
 }
