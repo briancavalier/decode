@@ -225,8 +225,18 @@ export const record = <Fields extends Record<string, Decode<any, unknown, unknow
   }
 
 /** Accepts an array of values accepted by the provided decoder */
-export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<readonly I[], readonly O[], KeyItemsFailed<readonly I[], readonly Label<number, E>[]>> =>
+export const arrayOf = <I, O, E>(d: Decode<I, O, E>): Decode<
+  readonly I[],
+  readonly O[],
+  KeyItemsFailed<readonly I[], readonly Label<number, E>[]> | Errors<typeof array>
+> =>
   ai => {
+    // TODO: Figure out better interaction with schema decoding
+    // Unfortunate, but temporarily need to be extra careful here since
+    // schema decoding is a bit more free in allowing unknown
+    const check = array(ai)
+    if (!isOk(check)) return check
+
     const r: O[] = []
     const errors: Label<number, E>[] = []
     for (let k = 0; k < ai.length; k++) {
@@ -247,9 +257,15 @@ export const tuple = <Items extends readonly Decode<unknown, unknown, unknown>[]
   KeyItemsFailed<
     readonly unknown[],
     readonly Label<K, Missing<ProductErrors<Items, K>> | ProductErrors<Items, K>>[]
-  >
+  > | Errors<typeof array>
 > =>
   ti => {
+    // TODO: Figure out better interaction with schema decoding
+    // Unfortunate, but temporarily need to be extra careful here since
+    // schema decoding is a bit more free in allowing unknown
+    const check = array(ti)
+    if (!isOk(check)) return check
+
     const ro = [] as unknown[]
     const errors: Label<K, Missing<ProductErrors<Items, K>> | ProductErrors<Items, K>>[] = []
     for (let k = 0; k < r.length; k++) {

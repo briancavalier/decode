@@ -36,7 +36,7 @@ const decodeSecretsManagerOutputToMySecrets = pipe(
   object, // allows only JSON object values
   fromSchema(mySecretsSchema)
 )
-
+const d = fromSchema(mySecretsSchema)
 // A fake SecretsManager response to test
 const fakeSecretsManagerOutput = {
   SecretString: JSON.stringify({
