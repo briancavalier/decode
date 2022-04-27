@@ -6,7 +6,9 @@ const secretsManagerOutputSchema = {
   SecretString: json
 }
 
-// Derive type from schema
+// Type of expected responses from SecretsManager
+// Not explicitly needed in this example, but shows how types
+// can be derived from schemas
 type SecretsManagerOutput = FromSchema<typeof secretsManagerOutputSchema>
 
 // General SecretsManager response decoder to extract JSON-encoded SecretString
@@ -17,7 +19,6 @@ const decodeSecretString = pipe(
   map(x => x.SecretString),
 )
 
-
 // Application-specific type schema
 const mySecretsSchema = {
   mySecret1: string,
@@ -25,6 +26,8 @@ const mySecretsSchema = {
 }
 
 // Type of our secret values we need to fetch from SecretsManager
+// Not explicitly needed in this example, but shows how types
+// can be derived from schemas
 type MySecrets = FromSchema<typeof mySecretsSchema>
 
 // Compose final decoder from general SecretString decoder and
@@ -36,7 +39,7 @@ const decodeSecretsManagerOutputToMySecrets = pipe(
   object, // allows only JSON object values
   fromSchema(mySecretsSchema)
 )
-const d = fromSchema(mySecretsSchema)
+
 // A fake SecretsManager response to test
 const fakeSecretsManagerOutput = {
   SecretString: JSON.stringify({
