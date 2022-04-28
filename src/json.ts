@@ -1,8 +1,6 @@
 import { DecodeResult, fail, ok, Variant } from './decode'
 
-export type Json = number | string | boolean | readonly Json[] | JsonObject<Json>
-
-export interface JsonObject<T> extends Record<string, T> { }
+export type Json = null | number | string | boolean | readonly Json[] | { [k: string]: Json }
 
 export type JsonParseError = Variant<'JsonParseError', { readonly error: unknown }>
 
