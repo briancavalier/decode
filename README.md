@@ -1,6 +1,6 @@
 # Schemas & Decoders
 
-A _schema_ describes data. From a schema, you can derive a _type_ and a _decoder_ for values conforming to the schema. A decoder parses, validates, and transforms untrusted inputs into output values conforming to a schema.
+A _schema_ describes data. From a schema, you can derive a _type_ and a _decoder_. A decoder parses, validates, and transforms untrusted inputs into output values conforming to a schema.
 
 ## Example
 
