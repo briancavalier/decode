@@ -1,29 +1,20 @@
-import { decode, json, map, number, object, pipe, string } from '../src'
-import { FromSchema, fromSchema } from '../src/schema'
+import { fromSchema, FromSchema, json, map, number, object, pipe, string } from '../src'
 
 // Schema describing subset of the fields from aws sdk v3's SecretsManager return type
 const secretsManagerOutputSchema = {
   SecretString: json
-}
+} as const
 
 // Type of expected responses from SecretsManager
 // Not explicitly needed in this example, but shows how types
 // can be derived from schemas
 type SecretsManagerOutput = FromSchema<typeof secretsManagerOutputSchema>
 
-// General SecretsManager response decoder to extract JSON-encoded SecretString
-// Record<string, unknown> -> Json
-// Fails for inputs whose SecretString is not a JSON encoded value
-const decodeSecretString = pipe(
-  fromSchema(secretsManagerOutputSchema),
-  map(x => x.SecretString),
-)
-
 // Application-specific type schema
 const mySecretsSchema = {
   mySecret1: string,
   mySecret2: number
-}
+} as const
 
 // Type of our secret values we need to fetch from SecretsManager
 // Not explicitly needed in this example, but shows how types
@@ -35,7 +26,8 @@ type MySecrets = FromSchema<typeof mySecretsSchema>
 // Since decodeSecretString outputs Json, we are required to prove
 // that it's a JSON object by inserting the object decoder
 const decodeSecretsManagerOutputToMySecrets = pipe(
-  decodeSecretString,
+  fromSchema(secretsManagerOutputSchema),
+  map(x => x.SecretString), // extract the encoded JSON string
   object, // allows only JSON object values
   fromSchema(mySecretsSchema)
 )
@@ -50,6 +42,6 @@ const fakeSecretsManagerOutput = {
 
 // Decode the response
 // result is now Ok or Fail
-const result = decode(decodeSecretsManagerOutputToMySecrets, fakeSecretsManagerOutput)
+const result = decodeSecretsManagerOutputToMySecrets(fakeSecretsManagerOutput)
 
 console.log(result)

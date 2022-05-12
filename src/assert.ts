@@ -1,12 +1,12 @@
-import { Decode, decode, DecodeResult, isOk } from './decode'
+import { Decode, DecodeResult, isOk } from './decode'
 import { Stringifiable, renderFailure } from './fail'
 
 /**
  * Decode i with d, and if successful, return the decoded value directly.
  * If not successful, throw DecodeAssertError describing the failure
  */
-export const assert = <I, O, E>(d: Decode<I, O, E>, i: I): O =>
-  assertOk(decode(d, i))
+export const assert = <I, O, E>(d: Decode<I, O, E>): ((i: I) => O) =>
+  i => assertOk(d(i))
 
 /**
  * If r is Ok, return r, otherwise throw DecodeAssertError
