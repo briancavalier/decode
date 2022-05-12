@@ -1,7 +1,7 @@
 import fc from 'fast-check'
 import { test } from 'tap'
-import { arrayOf, decode, isOk, number, string, boolean } from './decode'
-import { fromSchema } from './schema'
+import { isOk, } from './decode'
+import { arrayOf, boolean, fromSchema, number, string } from './schema'
 
 test(fromSchema.name, t => {
   const schema = {
@@ -20,15 +20,15 @@ test(fromSchema.name, t => {
       c1: fc.boolean(),
       c2: fc.array(fc.float())
     })
-  }), r => t.ok(isOk(decode(fromSchema(schema), r)))))
+  }), r => t.ok(isOk(fromSchema(schema)(r)))))
 
-  t.notOk(isOk(decode(fromSchema(schema), {})))
+  t.notOk(isOk(fromSchema(schema)({})))
 
   fc.assert(fc.property(fc.record({
     a: fc.float(),
     b: fc.anything(),
     c: fc.anything()
-  }), r => t.notOk(isOk(decode(fromSchema(schema), r)))))
+  }), r => t.notOk(isOk(fromSchema(schema)(r)))))
 
   t.end()
 })

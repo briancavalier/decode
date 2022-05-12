@@ -16,7 +16,7 @@ export const renderFailure = (s: Stringifiable, indent = '', pad = ' '): string 
     return bracket(n.context, `\n${renderFailure(n.errors, indent + pad, pad)}\n${indent}`)
   }
   if (n.type === 'OneOf') {
-    return `One of:\n${n.errors.map(e => `| ${renderFailure(e, indent + pad, pad)}`).join('\n')}`
+    return `${n.errors.map(e => `${renderFailure(e, indent, pad)}`).join('\n|')}`
   }
   if (n.type === 'AllOf') {
     return `\n${renderFailure(n.errors, indent, pad)}`

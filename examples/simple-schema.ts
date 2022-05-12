@@ -1,10 +1,5 @@
-# Schemas & Decoders
+import { isOk, arrayOf, fromSchema, FromSchema, number, optional, string, renderFailure } from '../src'
 
-A _schema_ describes data. From a schema, you can derive a _type_ and a _decoder_ for values conforming to the schema. A decoder parses, validates, and transforms untrusted inputs into output values conforming to a schema.
-
-## Example
-
-```ts
 // Schema for an address
 // Note: as const isn't required, but helps TS to derive better types
 const address = {
@@ -42,4 +37,3 @@ if (isOk(result)) {
 } else {
   console.error('invalid input', renderFailure(result.error))
 }
-```
