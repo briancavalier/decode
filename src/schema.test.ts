@@ -99,6 +99,7 @@ test(arrayOf.name, t => {
     fc.property(fc.array(fc.string()),
       s => t.ok(isOk(fromSchema(schema)(s)))))
 
+  // Empty array is a valid arrayOf(string) at runtime, so filter it out
   fc.assert(
     fc.property(fc.array(fc.float()).filter(a => a.length > 0),
       s => t.notOk(isOk(fromSchema(schema)(s)))))
