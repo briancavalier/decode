@@ -24,14 +24,14 @@ export type AnySchema =
   | number | string | boolean | null | undefined
   | RecordSchema
   | TupleSchema
-  | { [schemaSymbol]: 'array', schema: AnySchema } // ArraySchema<AnySchema> - avoids TSC recursion issues
+  | { readonly [schemaSymbol]: 'array', schema: AnySchema } // ArraySchema<AnySchema> - avoids TSC recursion issues
   | UnionSchema<TupleSchema>
   | Decode<any, unknown, unknown>
 
 type RecordSchema = { readonly [k: string]: AnySchema }
 type TupleSchema = { readonly [k: number]: AnySchema } // Weird, but avoids TSC recursion issues
-type ArraySchema<Schema> = { [schemaSymbol]: 'array', schema: Schema }
-type UnionSchema<Schemas> = { [schemaSymbol]: 'any', schemas: Schemas }
+type ArraySchema<Schema> = { readonly [schemaSymbol]: 'array', readonly schema: Schema }
+type UnionSchema<Schemas> = { readonly [schemaSymbol]: 'any', readonly schemas: Schemas }
 
 /** Schema for any value */
 export const unknown: Decode<unknown, unknown, never> = ok
@@ -57,16 +57,16 @@ export const arrayOf = <Schema extends AnySchema>(schema: Schema): ArraySchema<S
   ({ [schemaSymbol]: 'array', schema })
 
 /** Schema for a union matching at least one of the provided schemas */
-export const anyOf = <Schemas extends [AnySchema, AnySchema, ...readonly AnySchema[]]>(...schemas: Schemas): UnionSchema<Schemas> =>
-  ({ [schemaSymbol]: 'any', schemas })
+export const union = <S1 extends AnySchema, S2 extends AnySchema, S3 extends readonly AnySchema[]>(s1: S1, s2: S2, ...s3: S3): UnionSchema<readonly [S1, S2, ...S3]> =>
+  ({ [schemaSymbol]: 'any', schemas: [s1, s2, ...s3] })
 
 /** Given a schema, return a new schema that is s | null */
 export const nullable = <Schema extends AnySchema>(s: Schema) =>
-  anyOf(s, null)
+  union(s, null)
 
 /** Given a schema, return a new schema that is s | undefined */
 export const optional = <Schema extends AnySchema>(s: Schema) =>
-  anyOf(s, undefined)
+  union(s, undefined)
 
 /**
  * Derive a type from a schema
@@ -77,7 +77,7 @@ export const optional = <Schema extends AnySchema>(s: Schema) =>
 export type FromSchema<S> =
   S extends number | string | boolean | null | undefined ? S
   : S extends readonly AnySchema[] ? { readonly [K in keyof S]: FromSchema<S[K]> }
-  : S extends UnionSchema<readonly AnySchema[]> ? FromSchema<S['schemas']>[number]
+  : S extends UnionSchema<readonly AnySchema[]> ? FromSchema<S['schemas'][number]>
   : S extends ArraySchema<infer S> ? readonly FromSchema<S>[]
   : S extends RecordSchema ? { readonly [K in keyof S]: FromSchema<S[K]> }
   : Output<S>
@@ -98,7 +98,7 @@ export const fromSchema = <Schema extends AnySchema>(s: Schema): Decode<
 type SchemaInput<Schema> = Schema extends Decode<infer I, unknown, unknown> ? I
   : Schema extends number | string | boolean | null | undefined ? unknown
   : Schema extends UnionSchema<readonly AnySchema[]> ? SchemaInput<Schema['schemas'][number]>
-  : Schema extends ArraySchema<unknown> ? unknown[]
+  : Schema extends ArraySchema<unknown> ? readonly unknown[]
   : Schema extends RecordSchema ? Record<string, unknown>
   : readonly unknown[]
 
