@@ -10,7 +10,8 @@ test(fromSchema.name, t => {
     c: {
       c1: boolean,
       c2: arrayOf(number)
-    }
+    },
+    d: [1, 2, 3]
   } as const
 
   fc.assert(fc.property(fc.record({
@@ -19,7 +20,8 @@ test(fromSchema.name, t => {
     c: fc.record({
       c1: fc.boolean(),
       c2: fc.array(fc.float())
-    })
+    }),
+    d: fc.constant([1, 2, 3] as const)
   }), r => t.ok(isOk(fromSchema(schema)(r)))))
 
   t.notOk(isOk(fromSchema(schema)({})))
@@ -27,7 +29,8 @@ test(fromSchema.name, t => {
   fc.assert(fc.property(fc.record({
     a: fc.float(),
     b: fc.anything(),
-    c: fc.anything()
+    c: fc.anything(),
+    d: fc.array(fc.float())
   }), r => t.notOk(isOk(fromSchema(schema)(r)))))
 
   t.end()
@@ -95,6 +98,10 @@ test(arrayOf.name, t => {
   fc.assert(
     fc.property(fc.array(fc.string()),
       s => t.ok(isOk(fromSchema(schema)(s)))))
+
+  fc.assert(
+    fc.property(fc.array(fc.float()).filter(a => a.length > 0),
+      s => t.notOk(isOk(fromSchema(schema)(s)))))
 
   t.end()
 })
