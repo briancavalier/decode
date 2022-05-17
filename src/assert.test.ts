@@ -1,7 +1,14 @@
 import fc from 'fast-check'
 import { test } from 'tap'
-import { assertOk } from './assert'
+import { assert, assertOk } from './assert'
 import { fail, ok } from './decode'
+import { number } from './schema'
+
+test(assert.name, t => {
+  fc.assert(fc.property(fc.float(), x => t.equal(assert(number)(x), x)))
+  fc.assert(fc.property(fc.string(), x => !!t.throws(x => assert(number)(x), x)))
+  t.end()
+})
 
 test(assertOk.name, t => {
   // NOTE: NaN !== NaN, so use isNaN
