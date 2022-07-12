@@ -42,8 +42,12 @@ test(unknown.name, t => {
 })
 
 test(number.name, t => {
-  fc.assert(fc.property(fc.float(), x => t.same(number(x), ok(x))))
+  fc.assert(fc.property(fc.float({ noNaN: true }), x => t.same(number(x), ok(x))))
   fc.assert(fc.property(fc.anything().filter(x => typeof x !== 'number'), x => t.notSame(number(x), ok(x))))
+
+  const r = number(NaN)
+  t.ok(isOk(r) && Number.isNaN(r.value))
+
   t.end()
 })
 
