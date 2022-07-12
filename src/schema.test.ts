@@ -89,8 +89,10 @@ test('optional properties', t => {
   const r1 = decode({})
   const r2 = decode({ test: undefined })
 
-  t.ok(isOk(r1))
-  t.ok(isOk(r2))
+  // Ensure that optional properties are decoded as present-and-undefined
+  // and that missing optional properties are treated the same.
+  t.ok(isOk(r1) && 'test' in r1.value && r1.value.test === undefined)
+  t.ok(isOk(r2) && 'test' in r2.value && r2.value.test === undefined)
 
   t.strictSame(r1, r2)
 
