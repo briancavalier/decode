@@ -81,6 +81,22 @@ test(optional.name, t => {
   t.end()
 })
 
+test('optional properties', t => {
+  const decode = fromSchema({
+    test: optional(number)
+  } as const)
+
+  const r1 = decode({})
+  const r2 = decode({ test: undefined })
+
+  t.ok(isOk(r1))
+  t.ok(isOk(r2))
+
+  t.strictSame(r1, r2)
+
+  t.end()
+})
+
 test(union.name, t => {
   const values = ['a', 'b', 'c'] as const
   const schema = union(...values)
